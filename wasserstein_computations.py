@@ -64,4 +64,40 @@ def wasserstein_custom(x,y):
   w_d2 = wd1(x_d2, y_d2)  
   
   return w_d1 + w_d2, w_d1, w_d2
+
+def transform_cond_dist(y):
+  '''
+  For y_i = x_i + \sum_{j=0}^{i} w[i,j]*x_j,
+  we implement the following transform-
+    compute \hat{y}_i s.t. for each j < i, x_j is replaced by f_j^{-1}(x_j), s.t.
+  We hope that this gives us the required conditional distribution P(y_i|x_{1..i-1})
+  In general, this might need some meta network stuff to achieve R->R, e.g. x1,x2 go into the meta-
+  network to determine the weights acting on x3. That way, x3 can be obtained from  
+  y3 given x1 and x2.
+  '''
+  #The algorithm is the following
+  #Step 1 - Compute the required x_i which have produced the given y_i 
+  #Step 2 - Compute the new x_i^' s.t. applying the function to them would yield x_i
+  #Step 3 - Compute the transformed distribution by applying the function to x_i^' and x_i 
+  #         s.t. y_i^{o/p} = x_i + weights[i,i]*x_i + \sum weights[i,j] x_j^'
+
+  #step 1
+  x = torch.zeros_like(y)
+  for i in range(y.size()[1]):
+    x[:,i] = (y[:,i] - weights[i,:].view(1,y.size()[1]) @ x.t())/(1+weights[i,i])
   
+  #step 2
+  x_ = torch.zeros_like(y)
+  for i in range(y.size()[1]):
+    x_[:,i] = (x[:,i] - weights[i,:].view(1,y.size()[1]) @ x_.t())/(1+weights[i,i])
+
+  #step 3
+  y_op = torch.zeros_like(y)
+  mask = torch.tril(torch.ones_like(weights),diagonal=-1)   #Since only entries upto i-1 are considered for y_i
+
+  weights_ = weights*mask
+  for i in range(y.size()[1]):
+    y_op[:,i] = y[:,i] + weights_[i,:].view(1,y.size()[1]) @ ((x_ - x).t())
+
+  return y_op
+
