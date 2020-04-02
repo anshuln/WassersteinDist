@@ -41,29 +41,17 @@ def whitened_wasserstein(y,z):
   proj1, _ = torch.sort(y_w, dim=0)
   proj2, _ = torch.sort(z, dim=0)
   d = torch.abs(proj1 - proj2)
-  return torch.sum(d)
+  return torch.mean(d)
 
-def wasserstein_custom(x,y):
-  # first dimension is easy since they are independent. 
-  x_d1 = x[:, 0]
-  y_d1 = y[:, 0]
-  w_d1 = wd1(x_d1, y_d1) 
+def wasserstein_custom(y,z):
 
-  # now, second dimension we need to handle the inverse of f1. 
-  # in particular, we want to compute the inverse on f1^{-1}( f2(x1,x2) )
-  # Actually we need the inverse in the following manner -
-  # f2(f1^{-1}(x1),x2)
-  # In this particular case, it becomes y_d2 - c*x_d1 + (c/(1+a))*x_d1
-  x_d2 = x[:, 1]
-  y_d2 = y[:, 1]
+  y1_ = transform_cond_dist(y)
 
-  # y are encodings, so compute inverse on y 
-  assert weights[0,0] != -1
-  # y_d2 = y_d2 / (1 + weights[0,0])
-  y_d2 = y_d2 - (weights[1,0]/(1 + weights[0,0]))*y_d1 + (weights[1,0]/((1 + weights[0,0])**2))*y_d1 
-  w_d2 = wd1(x_d2, y_d2)  
+  proj1, _ = torch.sort(y1_, dim=0)
+  proj2, _ = torch.sort(z, dim=0)
+  d = torch.abs(proj1 - proj2)
   
-  return w_d1 + w_d2, w_d1, w_d2
+  return torch.sum(d)  
 
 def transform_cond_dist(y):
   '''
@@ -84,20 +72,27 @@ def transform_cond_dist(y):
   #step 1
   x = torch.zeros_like(y)
   for i in range(y.size()[1]):
-    x[:,i] = (y[:,i] - weights[i,:].view(1,y.size()[1]) @ x.t())/(1+weights[i,i])
+    # The masking is done since we need column wise updates, and slice and assign 
+    # is not differentiable
+    M = torch.zeros_like(x)
+    M[:,i] = 1.
+    x = x + (((y[:,i] - weights[i,:].view(1,y.size()[1]) @ x.t())/(1+weights[i,i])).view(1,y.size()[0])*M.t()).t()
   
   #step 2
-  x_ = torch.zeros_like(y)
+  x_t = torch.zeros_like(y)
   for i in range(y.size()[1]):
-    x_[:,i] = (x[:,i] - weights[i,:].view(1,y.size()[1]) @ x_.t())/(1+weights[i,i])
+    M = torch.zeros_like(x)
+    M[:,i] = 1.
+    x_t = x_t + (((x[:,i] - weights[i,:].view(1,y.size()[1]) @ x_t.t())/(1+weights[i,i])).view(1,y.size()[0])*M.t()).t()
 
   #step 3
   y_op = torch.zeros_like(y)
   mask = torch.tril(torch.ones_like(weights),diagonal=-1)   #Since only entries upto i-1 are considered for y_i
 
-  weights_ = weights*mask
+  weights_m = weights*mask
   for i in range(y.size()[1]):
-    y_op[:,i] = y[:,i] + weights_[i,:].view(1,y.size()[1]) @ ((x_ - x).t())
+    y_op[:,i] = y[:,i] + weights_m[i,:].view(1,y.size()[1]) @ ((x_t - x).t())
 
   return y_op
+
 
