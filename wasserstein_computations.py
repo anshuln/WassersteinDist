@@ -26,7 +26,7 @@ def whitened_wasserstein(y,z):
   # Whitens y, then computes 1D wasserstein, assuming z is spherical gaussian
   
   # Compute the ZCA Matrix
-  y1  = y - torch.mean(y,axis=1)
+  y1  = y - torch.mean(y,axis=0)
   cov = y1.t() @ y1/(y1.size()[0]-1)
 
   u,s,_ = torch.svd(cov)
@@ -35,7 +35,7 @@ def whitened_wasserstein(y,z):
   ZCAMatrix = torch.matmul(u, torch.matmul(torch.diag(1.0/torch.sqrt(s + epsilon)), u.t())) 
   
   #Whiten y
-  y_w = ZCAMatrix @ y
+  y_w = y @ ZCAMatrix 
 
   #Compute sum of 1D wassersteins
   proj1, _ = torch.sort(y_w, dim=0)
