@@ -32,7 +32,7 @@ def whitened_wasserstein(y,z):
   u,s,_ = torch.svd(cov)
   epsilon = 1e-5
   # ZCA Whitening matrix: U * Lambda * U'
-  ZCAMatrix = torch.matmul(u, torch.matmul(torch.diag(1.0/torch.sqrt(s + epsilon)), u.t())) 
+  ZCAMatrix = u 
   
   #Whiten y
   y_w = y @ ZCAMatrix 
