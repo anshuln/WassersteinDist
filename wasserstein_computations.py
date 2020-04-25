@@ -95,4 +95,41 @@ def transform_cond_dist(y):
 
   return y_op
 
+def dhsic(x):
+  '''
+  Returns the estimate for dhsic according to Algorithm 1 of https://arxiv.org/pdf/1603.00285.pdf
+  Assumes x is a nxd matrix 
+  Uses Gaussian Kernel
+  '''
+  alpha = 1.01
+  gamma = 1
+  def gaussian_kernel(x1,x2):
+    return (alpha*torch.exp(-gamma*(x1[:,None]-x2[None,:])**2))
+  #Step 1 - compute gram-matrix
+  K = []
+  n,d = x.size()
+  for i in range(d):  
+    K.append(gaussian_kernel(x[:,i],x[:,i]))
+  
+  #step 2 - compute each term
+  '''
+  This is the slow for loop computation
+  '''
+  # term1 = torch.ones(n,n)
+  # term2 = 1.
+  # term3 = (2/n)*torch.ones(1,n)
 
+  # for i in range(d):
+  #   term1 = term1 * K[i]
+  #   term2 = term2 * K[i].sum()/(n**2)
+  #   term3 = (term3 * K[i].sum(axis=0))/n
+  # print(kernel.size())
+
+  '''
+  This is the vectorized computation
+  '''
+  kernel = torch.stack(K)
+  term1 = torch.prod(kernel,0) # yeah, this will be a numerical hell. 
+  term2 = torch.prod(kernel.sum(2).sum(1)/(n**2),0)
+  term3 = 2*(torch.prod(kernel.sum(2)/n,0))/n
+  return term1.sum()/(n**2) + term2 - term3.sum()
